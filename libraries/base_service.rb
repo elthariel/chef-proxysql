@@ -64,7 +64,7 @@ class Chef
 
       def platform_supported?
         platform = node['platform']
-        return if %w[redhat centos].include?(platform)
+        return if %w[redhat centos debian ubuntu].include?(platform)
         raise "Platform #{platform} is not supported"
       end
 
@@ -100,6 +100,24 @@ class Chef
         when 'rhel', 'centos'
           execute "rpm -Uhv #{url}" do
             creates "/etc/yum.repos.d/#{name}"
+          end
+        when 'debian', 'ubuntu'
+          basename = ::File.basename(url)
+          percona_repo_deb = Chef::Config[:file_cache_path] + "/#{basename}"
+
+          apt_update 'for_percona_repo' do
+            action :nothing
+          end
+
+          dpkg_package basename do
+            source percona_repo_deb
+            action :nothing
+            notifies :update, 'apt_update[for_percona_repo]'
+          end
+
+          remote_file percona_repo_deb do
+            source url
+            notifies :install, "dpkg_package[#{basename}]"
           end
         end
       end

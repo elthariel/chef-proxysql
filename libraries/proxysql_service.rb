@@ -89,8 +89,13 @@ class Chef
         install_proxysql
         create_directories(service_data_dir)
         install_config
-        systemd_service_directory
-        install_systemd_service
+
+        if node['proxysql']['systemd']
+          systemd_service_directory
+          install_systemd_service
+        else
+          install_poise_service
+        end
 
         service constructed_service_name do
           supports(
@@ -217,7 +222,7 @@ class Chef
         execute 'load-config' do
           command cmd
           action :nothing
-          only_if { ::File.exist?(unit_path) }
+          only_if { ::File.exist?(unit_path) || !node['proxysql']['systemd']}
         end
 
         variables = config_variables
@@ -288,6 +293,15 @@ class Chef
           notifies :run, 'execute[systemctl-daemon-reload]', :immediately
           helpers(ProxysqlHelpers)
           cookbook 'proxysql'
+        end
+      end
+
+      def install_poise_service
+        proxysql_cmd = "#{new_resource.bin} #{service_args}"
+
+        poise_service constructed_service_name do
+          user new_resource.user
+          command proxysql_cmd
         end
       end
 
